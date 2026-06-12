@@ -31,12 +31,7 @@ from rsa import extract
 from rsa.config import add_rsa_args, params_from_args
 from rsa.core import BackendClient, run_rsa
 
-from bench.metrics import (
-    COUNTER_QUERIES,
-    LATENCY_QUERIES,
-    GaugeSampler,
-    PromClient,
-)
+from bench.metrics import COUNTER_QUERIES, GaugeSampler, PromClient
 from bench.problems import Problem, load_problems
 
 logger = logging.getLogger("bench")
@@ -169,8 +164,7 @@ async def run_benchmark(args: argparse.Namespace) -> RunReport:
             await run_rsa(client, params, warm, model)
             logger.info("warmup complete")
 
-        snap_queries = {**COUNTER_QUERIES, **LATENCY_QUERIES}
-        before = await prom.snapshot(snap_queries) if prom else {}
+        before = await prom.snapshot(COUNTER_QUERIES) if prom else {}
         wall_start = time.monotonic()
         results: list[ProblemResult] = []
         for _ in range(args.repeat):
@@ -181,7 +175,7 @@ async def run_benchmark(args: argparse.Namespace) -> RunReport:
                     )
                 )
         wall_clock = time.monotonic() - wall_start
-        after = await prom.snapshot(snap_queries) if prom else {}
+        after = await prom.snapshot(COUNTER_QUERIES) if prom else {}
 
         latencies = [r.latency_s for r in results]
         report = RunReport(
@@ -217,18 +211,6 @@ def _server_summary(
     waits = [r.peak_waiting for r in results if r.peak_waiting is not None]
     if waits:
         summary["peak_waiting_seqs"] = max(waits)
-
-    # Server-side time breakdown (prefill vs decode vs queue). For RSA this is
-    # overwhelmingly decode, which is what governs latency.
-    e2e = after.get("e2e_s", 0.0) - before.get("e2e_s", 0.0)
-    if e2e > 0:
-        breakdown = {}
-        for phase in ("prefill_s", "decode_s", "queue_s"):
-            delta = after.get(phase, 0.0) - before.get(phase, 0.0)
-            breakdown[phase] = delta
-            breakdown[f"{phase[:-2]}_pct"] = 100.0 * delta / e2e
-        breakdown["e2e_s"] = e2e
-        summary["time_breakdown"] = breakdown
     return summary
 
 
@@ -258,12 +240,6 @@ def _print_summary(report: RunReport) -> None:
             print(
                 f"server decode     : "
                 f"{s['server_generation_tokens_per_s']:.0f} gen tok/s"
-            )
-        if "time_breakdown" in s:
-            b = s["time_breakdown"]
-            print(
-                f"server time split : decode {b['decode_pct']:.1f}%  "
-                f"prefill {b['prefill_pct']:.1f}%  queue {b['queue_pct']:.1f}%"
             )
     print("=" * 72)
 

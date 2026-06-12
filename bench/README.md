@@ -16,13 +16,7 @@ inference container.
 Per problem: wall-clock latency, selected answer + correctness, token usage,
 selection method, and (with `--prometheus`) the peak `running`/`waiting` seqs
 reached during the query. Aggregated: accuracy, latency median/mean/p90/min/max,
-total tokens, server decode tokens/s, and the server-side **time breakdown**
-(decode vs prefill vs queue) over the run.
-
-The breakdown is the metric that matters: a measured bf16 RSA baseline (N=8,
-T=2) spent **~98.5% in decode, ~0.9% in prefill** — so RSA latency is governed
-by total tokens *decoded*, not prefill (i.e. prefix caching would save ~1%; the
-real knobs are the RSA token budget N/T/β/τ and decode concurrency).
+total tokens, and server decode tokens/s over the run.
 
 The **peak running seqs** is the capacity check from the plan: after INT8 +
 `--max-num-seqs 16`, a round of 16 rollouts should run as one wave

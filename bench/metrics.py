@@ -30,17 +30,6 @@ COUNTER_QUERIES: dict[str, str] = {
     "generation_tokens": "sum(vllm:generation_tokens_total)",
 }
 
-# Cumulative server-side time histograms (the *_sum is itself a running total of
-# seconds). Snapshotting before/after a run and diffing gives where the backend
-# spent its time — for RSA this is overwhelmingly decode, so the breakdown is
-# the metric that actually drives the optimization.
-LATENCY_QUERIES: dict[str, str] = {
-    "prefill_s": "sum(vllm:request_prefill_time_seconds_sum)",
-    "decode_s": "sum(vllm:request_decode_time_seconds_sum)",
-    "queue_s": "sum(vllm:request_queue_time_seconds_sum)",
-    "e2e_s": "sum(vllm:e2e_request_latency_seconds_sum)",
-}
-
 
 class PromClient:
     """Thin async client for the Prometheus instant-query API."""
