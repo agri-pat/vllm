@@ -1,0 +1,65 @@
+services:
+  vllm:
+    image: vllm-rocm:gfx1100
+    container_name: vllm-server
+    command: vllm serve Zyphra/ZAYA1-8B --max-num-batched-tokens 8192 --max-num-seqs 16 --served-model-name model --max-model-len -1 --mamba-cache-dtype float32 --dtype bfloat16 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser zaya_xml --trust-remote-code --max-model-len 60000
+    ports:
+      - "8000:8000"
+    devices:
+      - /dev/kfd
+      # Only the RX 7900 render node — keeps the Raphael iGPU hidden from ROCm
+      - /dev/dri/renderD128
+    group_add:
+      - video
+      - render
+    security_opt:
+      - seccomp:unconfined
+    ipc: host
+    shm_size: 16g
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    # environment:
+    #   - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}   # for gated models
+    #   - VLLM_USE_V1=1
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 300s
+      retries: 3
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: vllm-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: vllm-grafana
+    ports:
+      # 3000 on the host is already in use
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  grafana-data:
